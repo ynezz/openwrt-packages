@@ -23,30 +23,11 @@ jobs:
 
       - name: Determine branch name
         run: |
-          BRANCH="${GITHUB_BASE_REF#refs/heads/}"
+          BRANCH="ynezz/ynezz/network-quality-server"
           echo "Building for $BRANCH"
           echo "BRANCH=$BRANCH" >> $GITHUB_ENV
 
-      - name: Determine changed packages
-        run: |
-          # only detect packages with changes
-          PKG_ROOTS=$(find . -name Makefile | \
-            grep -v ".*/src/Makefile" | \
-            sed -e 's@./\(.*\)/Makefile@\1/@')
-          CHANGES=$(git diff --diff-filter=d --name-only origin/$BRANCH)
-
-          for ROOT in $PKG_ROOTS; do
-            for CHANGE in $CHANGES; do
-              if [[ "$CHANGE" == "$ROOT"* ]]; then
-                PACKAGES+=$(echo "$ROOT" | sed -e 's@.*/\(.*\)/@\1 @')
-                break
-              fi
-            done
-          done
-
-          # fallback to test packages if nothing explicitly changes this is
-          # should run if other mechanics in packages.git changed
-          PACKAGES="${PACKAGES:-vim attendedsysupgrade-common bmon}"
+          PACKAGES="network-quality-server"
 
           echo "Building $PACKAGES"
           echo "PACKAGES=$PACKAGES" >> $GITHUB_ENV
@@ -54,21 +35,13 @@ jobs:
       - name: Build
         uses: openwrt/gh-action-sdk@v3
         env:
-          ARCH: ${{ matrix.arch }}-${{ env.BRANCH }}
+          ARCH: ${{ matrix.arch }}-master
           FEEDNAME: packages_ci
 
       - name: Move created packages to project dir
-        run: cp bin/packages/${{ matrix.arch }}/packages_ci/*.ipk . || true
-
-      - name: Collect metadata
         run: |
-          MERGE_ID=$(git rev-parse --short HEAD)
-          echo "MERGE_ID=$MERGE_ID" >> $GITHUB_ENV
-          echo "BASE_ID=$(git rev-parse --short HEAD^1)" >> $GITHUB_ENV
-          echo "HEAD_ID=$(git rev-parse --short HEAD^2)" >> $GITHUB_ENV
-          PRNUMBER=${GITHUB_REF_NAME%/merge}
-          echo "PRNUMBER=$PRNUMBER" >> $GITHUB_ENV
-          echo "ARCHIVE_NAME=${{matrix.arch}}-PR$PRNUMBER-$MERGE_ID" >> $GITHUB_ENV
+          cp bin/packages/${{ matrix.arch }}/packages_ci/*.ipk . || true
+          echo "ARCHIVE_NAME=${{matrix.arch}}" >> $GITHUB_ENV
 
       - name: Generate metadata
         run: |
@@ -77,13 +50,9 @@ jobs:
           Name: ${{env.ARCHIVE_NAME}}
           Version: $BRANCH
           Author: $GITHUB_ACTOR
-          Home-page: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/$PRNUMBER
           Download-URL: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           Summary: $PACKAGES
           Platform: ${{ matrix.arch }}
-
-          Packages for OpenWrt $BRANCH running on ${{matrix.arch}}, built from PR $PRNUMBER
-          at commit $HEAD_ID, against $BRANCH at commit $BASE_ID, with merge SHA $MERGE_ID.
 
           Modified packages:
           _EOF_
